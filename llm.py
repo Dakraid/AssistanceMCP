@@ -29,11 +29,10 @@ class LLMClient:
     def __init__(self, cfg: Optional[OpenRouterConfig] = None):
         self.cfg = cfg or load_openrouter_config()
 
-    # noinspection PyArgumentList
+    # noinspection PyArgumentList,PyTypeChecker
     def _text_model(self) -> OpenAIChatModel:
         return OpenAIChatModel(
             model_name=self.cfg.text_model,
-            base_url=self.cfg.base_url,
             provider=OpenRouterProvider(api_key=self.cfg.api_key),
         )
 
