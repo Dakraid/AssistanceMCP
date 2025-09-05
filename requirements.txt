@@ -1,0 +1,4 @@
+fastmcp
+pydantic-ai-slim[openai]
+requests
+python-dotenv
