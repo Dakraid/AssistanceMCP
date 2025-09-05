@@ -3,6 +3,7 @@
 A minimal Model Context Protocol (MCP) server built with FastMCP. It augments a primary LLM with:
 
 - Co-Reasoning: Query a configured text-only model via OpenRouter to get advisory solutions/considerations.
+- Co-Writing: Ask a secondary LLM for story considerations, complexities, and continuity guidance for an ongoing story (advisory; not prose).
 - Image Processing: Use a vision-enabled model via OpenRouter to describe images. Includes a utility to convert images (file path or URL) to base64.
 
 This project uses PydanticAI to talk to OpenRouter for text reasoning, and OpenAI-compatible Chat Completions for vision.
@@ -14,7 +15,10 @@ This project uses PydanticAI to talk to OpenRouter for text reasoning, and OpenA
 Install dependencies:
 
 ```
-pip install -r requirements.txt
+pip install .
+
+# Or using uv (recommended):
+uv sync
 ```
 
 ## Configuration
@@ -63,7 +67,23 @@ Your MCP-compatible client (e.g., an IDE or agent runtime that speaks MCP) shoul
   - `{ "type": "considerations", "model": <model_id>, "content": <text> }`
 - Notes: Treat output as advisory considerations/guidelines for the main model (especially for coding and academic tasks).
 
-2) image_to_base64 (sync)
+2) co_write_considerations (async)
+- Purpose: Co-writing guidance for an ongoing story; provides considerations/complexities and continuity checks. Produces guidance only (no prose).
+- Parameters:
+  - `story_so_far: str` (required)
+  - `request: str | None = None`
+  - `constraints: str | None = None`
+  - `audience: str | None = None`
+  - `tone: str | None = None`
+  - `pov: str | None = None`
+  - `themes: str | None = None`
+  - `characters: str | None = None`
+  - `notes: str | None = None`
+- Returns:
+  - `{ "type": "co_writing_considerations", "model": <model_id>, "content": <text> }`
+- Notes: The main LLM should use this as suggestions/guidance when writing the next beats/scenes.
+
+3) image_to_base64 (sync)
 - Purpose: Convert an image to base64 and data URL.
 - Parameters (exactly one required):
   - `file_path: str | None = None`

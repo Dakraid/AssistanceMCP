@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "assistance-mcp"
+version = "0.1.0"
+description = "A minimal Model Context Protocol (MCP) server built with FastMCP for co-reasoning and image processing via OpenRouter."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Netrve" }
+]
+dependencies = [
+  "fastmcp",
+  "pydantic-ai-slim[openai]",
+  "requests",
+  "python-dotenv",
+]
+
+[tool.setuptools]
+# This project consists of top-level modules (no packages)
+py-modules = ["server", "llm", "config", "utils_image"]
+
+[project.urls]
+Homepage = "https://github.com/example/assistanceMCP"

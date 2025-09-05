@@ -24,11 +24,12 @@ mcp = FastMCP(
     name="AssistanceMCP",
     instructions=(
         """
-        AssistanceMCP augments your reasoning with two capabilities:
+        AssistanceMCP augments your reasoning with three capabilities:
         1) Co‑Reasoning: consult co_reason() to get an advisory solution, plan, or critique from a secondary LLM.
-        2) Image Processing: if you cannot process images, use image_to_base64() then vision_describe() to ask a vision model what an image contains.
+        2) Co‑Writing: consult co_write_considerations() to get considerations, complexities, and continuity guidance for an ongoing story; use as suggestions, not final prose.
+        3) Image Processing: if you cannot process images, use image_to_base64() then vision_describe() to ask a vision model what an image contains.
         Use this MCP for writing, coding help, and academic tasks: analysis, outlining, proofs, explanations, and code reasoning.
-        Treat co_reason() outputs as considerations or guidelines; you remain the primary decision-maker.
+        Treat co_reason() and co_write_considerations() outputs as considerations or guidelines; you remain the primary decision-maker.
         """
     ),
 )
@@ -121,6 +122,90 @@ async def vision_describe(
 
 
 @mcp.tool(
+    name="co_write_considerations",
+    description=(
+        "Get considerations, complexities, and continuity guidance for an ongoing story. "
+        "Intended as advisory input for a primary LLM that will write the actual prose."
+    ),
+    tags={"writing", "story", "planning", "co-writing"},
+    meta={"version": "1.0", "author": "assistance-mcp"},
+)
+async def co_write_considerations(
+    story_so_far: str,
+    request: Optional[str] = None,
+    constraints: Optional[str] = None,
+    audience: Optional[str] = None,
+    tone: Optional[str] = None,
+    pov: Optional[str] = None,
+    themes: Optional[str] = None,
+    characters: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> dict:
+    """Return advisory story considerations from a secondary text model.
+
+    Parameters:
+      - story_so_far: The narrative to date, including key events and context.
+      - request: What the primary LLM is trying to do next (e.g., write the next scene, brainstorm conflicts).
+      - constraints: Canon, rules, or boundaries (content limits, worldbuilding rules, pacing targets).
+      - audience: Target audience, if any.
+      - tone: Desired tone or mood (e.g., whimsical, gritty, noir).
+      - pov: Point of view constraints (e.g., 1st person limited, close 3rd).
+      - themes: Themes to emphasize.
+      - characters: Character goals, motivations, arcs to respect.
+      - notes: Any additional notes.
+
+    The output is guidance only; it should not include fully written narrative prose.
+    """
+    system = (
+        "You are a co-writing planning assistant. You do NOT write prose. "
+        "Provide structured considerations to help another model continue an ongoing story. "
+        "Focus on: continuity checks, character motivations, stakes, conflicts, complications, pacing, "
+        "worldbuilding consistency, theme reinforcement, and plausible next-step options. "
+        "Offer optional beat/scene outlines and alternative paths. Be specific and concise."
+    )
+
+    prompt_parts = [
+        "Story so far:",
+        story_so_far,
+    ]
+    if request:
+        prompt_parts += ["\nPrimary LLM request:", request]
+    if constraints:
+        prompt_parts += ["\nConstraints:", constraints]
+    if audience:
+        prompt_parts += ["\nAudience:", audience]
+    if tone:
+        prompt_parts += ["\nTone:", tone]
+    if pov:
+        prompt_parts += ["\nPoint of view:", pov]
+    if themes:
+        prompt_parts += ["\nThemes:", themes]
+    if characters:
+        prompt_parts += ["\nCharacters:", characters]
+    if notes:
+        prompt_parts += ["\nNotes:", notes]
+
+    prompt_parts += [
+        "\nOutput requirements:",
+        "- Start with a 2-4 sentence summary of the situation and immediate tensions.",
+        "- Provide a bullet list of key considerations and complexities (continuity, motivations, stakes, risks).",
+        "- Suggest 2-4 plausible next-scene options with pros/cons and implications.",
+        "- Call out risks, contradictions, and sensitive content to avoid.",
+        "- Include an optional concise beat-outline for the best option (no prose).",
+        "- Do NOT write narrative prose; this is guidance only.",
+    ]
+
+    prompt = "\n".join(prompt_parts)
+
+    answer = await get_client().ask_text(prompt, system=system)
+    return {
+        "type": "co_writing_considerations",
+        "model": answer.model,
+        "content": answer.text,
+    }
+
+
+@mcp.tool(
     name="image_to_base64",
     description=(
         "Convert an image from a local file path or URL to base64 and a data URL. "
@@ -202,4 +287,4 @@ def image_to_base64(
 if __name__ == "__main__":
     # Run the MCP server. FastMCP typically serves over stdio for MCP clients.
     # This call will block and handle the session until terminated by the client.
-    mcp.run()
+    mcp.run(transport="http", host="0.0.0.0", port=8000)
