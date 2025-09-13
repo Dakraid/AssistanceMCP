@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Optional
+import json
+from typing import Optional, List
 
 from fastmcp import FastMCP
 
@@ -24,12 +25,13 @@ mcp = FastMCP(
     name="AssistanceMCP",
     instructions=(
         """
-        AssistanceMCP augments your reasoning with three capabilities:
+        AssistanceMCP augments your reasoning with four capabilities:
         1) Co‑Reasoning: consult co_reason() to get an advisory solution, plan, or critique from a secondary LLM.
         2) Co‑Writing: consult co_write_considerations() to get considerations, complexities, and continuity guidance for an ongoing story; use as suggestions, not final prose.
-        3) Image Processing: if you cannot process images, use image_to_base64() then vision_describe() to ask a vision model what an image contains.
+        3) Story Analysis: consult analyze_story() to get a formal, structured analysis of the current story, with details to respect and potential paths ahead. This tool never writes continuation.
+        4) Image Processing: if you cannot process images, use image_to_base64() then vision_describe() to ask a vision model what an image contains.
         Use this MCP for writing, coding help, and academic tasks: analysis, outlining, proofs, explanations, and code reasoning.
-        Treat co_reason() and co_write_considerations() outputs as considerations or guidelines; you remain the primary decision-maker.
+        Treat co_reason(), co_write_considerations(), and analyze_story() outputs as considerations or guidelines; you remain the primary decision-maker.
         """
     ),
 )
@@ -200,6 +202,87 @@ async def co_write_considerations(
     answer = await get_client().ask_text(prompt, system=system)
     return {
         "type": "co_writing_considerations",
+        "model": answer.model,
+        "content": answer.text,
+    }
+
+
+@mcp.tool(
+    name="analyze_story",
+    description=(
+        "Perform a formal, structured analysis of a story for a successor writer. "
+        "Provide a comprehensive report with structure, continuity notes, details to respect, and potential directions. "
+        "This tool never writes story continuation itself."
+    ),
+    tags={"writing", "analysis", "story", "planning"},
+    meta={"version": "1.0", "author": "assistance-mcp"},
+)
+async def analyze_story(
+    story_description: str,
+    characters: Optional[str] = None,
+    setting: Optional[str] = None,
+    plot_summary: Optional[str] = None,
+    last_messages: Optional[List[str]] = None,
+    notes: Optional[str] = None,
+) -> dict:
+    """Analyze a story and produce a structured report for a successor model.
+
+    Parameters:
+      - story_description: A comprehensive description of the story to date (premise, world, arcs, canon).
+      - characters: Character dossiers (traits, goals, arcs, dynamics). Optional if included in story_description.
+      - setting: World/setting details (rules, constraints, tone). Optional if included in story_description.
+      - plot_summary: Condensed plot outline of events and arcs so far. Optional.
+      - last_messages: The last N chat messages (as strings) from the writing session for recency. Optional.
+      - notes: Any extra constraints or editorial direction. Optional.
+
+    Output is a structured analysis for guidance only; it must not contain new narrative prose.
+    """
+    system = (
+        "You are a senior story analyst assisting a successor writer. "
+        "Your job is to analyze only, never to continue the story. "
+        "Deliver a formal, structured report with specific, actionable guidance. "
+        "Do not include any narrative continuation or dialogue."
+    )
+
+    prompt_parts = [
+        "Story description:",
+        story_description,
+    ]
+    if characters:
+        prompt_parts += ["\nCharacters:", characters]
+    if setting:
+        prompt_parts += ["\nSetting:", setting]
+    if plot_summary:
+        prompt_parts += ["\nPlot summary:", plot_summary]
+    if notes:
+        prompt_parts += ["\nNotes:", notes]
+
+    if last_messages:
+        try:
+            msgs = "\n".join(f"- {m}" for m in last_messages)
+        except Exception:
+            msgs = str(last_messages)
+        prompt_parts += ["\nLast N chat messages:", msgs]
+
+    prompt_parts += [
+        "\nOutput format requirements:",
+        "1. Executive Summary (3-6 sentences).",
+        "2. Structural Analysis: acts/beats, pacing, arcs, and tension dynamics (bulleted).",
+        "3. Continuity & Canon: facts, rules, and constraints that MUST be respected (bulleted checklist).",
+        "4. Character Analysis: goals, conflicts, transformations, relationships (per character bullets).",
+        "5. Thematic Threads: motifs, symbolism, and how to reinforce them (bulleted).",
+        "6. Risks & Pitfalls: contradictions, dead-ends, tonal drift, sensitivities to avoid (bulleted).",
+        "7. Opportunities & Potential Directions: 3-5 concrete paths forward with pros/cons and implications.",
+        "8. Research/World Notes: any missing info or ambiguities to clarify (bulleted).",
+        "9. Style Guardrails: voice, POV, tone, pacing do's and don'ts (bulleted).",
+        "Rules: Do NOT write any story continuation, scenes, or dialogue."
+    ]
+
+    prompt = "\n".join(prompt_parts)
+
+    answer = await get_client().ask_text(prompt, system=system)
+    return {
+        "type": "story_analysis",
         "model": answer.model,
         "content": answer.text,
     }
